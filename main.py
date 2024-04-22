@@ -26,37 +26,21 @@ def assess_reviews(csv_file):
     return review_scores_map
 
 
-def extract_collocations(reviews, sentiment):
-      # Tokenize the reviews and filter out stopwords
-    tokens = [word for review in reviews for word in nltk.word_tokenize(review) if word not in stopwords.words('english')]
-    
-    # If part-of-speech filtering is enabled, only keep tokens that are nouns or adjectives
-    tokens = [token for token, pos in pos_tag(tokens) if not pos.startswith('N') and not pos.startswith('J') and not pos.startswith('NNP')]
-
-    # Use BigramCollocationFinder to find bigrams
-    bigram_finder = BigramCollocationFinder.from_words(tokens)
-    print(bigram_finder)
-    
-    # Filter bigrams to only those that appear at least 3 times
-    bigram_finder.apply_freq_filter(3)
-    
-    # If sentiment is positive, return the 40 bigrams with the highest PMI (Pointwise Mutual Information)
-    if sentiment == 1:
-        return bigram_finder.nbest(BigramAssocMeasures.pmi, 40)
-    # If sentiment is negative, return the 40 bigrams with the highest Chi-Square
-    elif sentiment == -1:
-        return bigram_finder.nbest(BigramAssocMeasures.chi_sq, 40)
 
 # Usage
 csv_file = 'data.csv'
 scores = assess_reviews(csv_file)
 
-positive_bigrams = extract_collocations(scores, sentiment=1)
-negative_bigrams = extract_collocations(scores, sentiment=-1)
+# Sort the scores
+sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-print("Top 40 positive bigrams:")
-print(positive_bigrams)
+# Print the top 40 positive and negative reviews
+print("Top 40 positive reviews:")
+for i in range(40):
+    print(sorted_scores[i])
 
-print("Top 40 negative bigrams:")
-print(negative_bigrams)
+print("Top 40 negative reviews:")
+for i in range(40):
+    print(sorted_scores[-i-1])
+
 
