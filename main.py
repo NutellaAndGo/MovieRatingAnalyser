@@ -2,8 +2,10 @@ from textblob import TextBlob
 import csv
 import time
 import nltk
-from nltk.collocations import BigramCollocationFinder, TrigramCollocationFinder
-from nltk.metrics import BigramAssocMeasures, TrigramAssocMeasures
+from nltk.collocations import BigramCollocationFinder
+from nltk.metrics import BigramAssocMeasures
+from nltk.corpus import stopwords
+from nltk import pos_tag
 
 def get_sentiment_score(text):
     blob = TextBlob(text)
@@ -15,57 +17,46 @@ def assess_reviews(csv_file):
         reader = csv.reader(file)
         next(reader)
         for row in reader:
-            sentiment_score = 0;
+            sentence = ""
             for column in row:
-                current_sentiment_score = get_sentiment_score(column)
-                sentiment_score += current_sentiment_score
-            print(f"Sentiment score: {sentiment_score}")
+                sentence += column + " "
+            sentiment_score = get_sentiment_score(sentence)
+            #print(f"Sentiment score: {sentiment_score}")
             review_scores_map[row[0]] = sentiment_score
     return review_scores_map
 
 
 def extract_collocations(reviews, sentiment):
-    for key, value in reviews.items():
-        if value != sentiment:
-            del reviews[key]
+      # Tokenize the reviews and filter out stopwords
+    tokens = [word for review in reviews for word in nltk.word_tokenize(review) if word not in stopwords.words('english')]
     
+    # If part-of-speech filtering is enabled, only keep tokens that are nouns or adjectives
+    tokens = [token for token, pos in pos_tag(tokens) if not pos.startswith('N') and not pos.startswith('J') and not pos.startswith('NNP')]
 
-    # Preprocess the reviews
-    preprocessed_reviews = [TextBlob(review).words.lower() for review in reviews]
-
-    # Create collocation finders
-    bigram_finder = BigramCollocationFinder.from_documents(preprocessed_reviews)
-    trigram_finder = TrigramCollocationFinder.from_documents(preprocessed_reviews)
-
-    # Apply part-of-speech filtering
-    bigram_finder.apply_freq_filter(3)  # Adjust the frequency threshold as needed
-    trigram_finder.apply_freq_filter(3)  # Adjust the frequency threshold as needed
-
-    # Get the top 40 collocations
-    top_40_bigrams = bigram_finder.nbest(BigramAssocMeasures.likelihood_ratio, 40)
-    top_40_trigrams = trigram_finder.nbest(TrigramAssocMeasures.likelihood_ratio, 40)
-
-    return top_40_bigrams, top_40_trigrams
+    # Use BigramCollocationFinder to find bigrams
+    bigram_finder = BigramCollocationFinder.from_words(tokens)
+    print(bigram_finder)
+    
+    # Filter bigrams to only those that appear at least 3 times
+    bigram_finder.apply_freq_filter(3)
+    
+    # If sentiment is positive, return the 40 bigrams with the highest PMI (Pointwise Mutual Information)
+    if sentiment == 1:
+        return bigram_finder.nbest(BigramAssocMeasures.pmi, 40)
+    # If sentiment is negative, return the 40 bigrams with the highest Chi-Square
+    elif sentiment == -1:
+        return bigram_finder.nbest(BigramAssocMeasures.chi_sq, 40)
 
 # Usage
 csv_file = 'data.csv'
 scores = assess_reviews(csv_file)
 
-positive_bigrams, positive_trigrams = extract_collocations(scores, sentiment=1)
-negative_bigrams, negative_trigrams = extract_collocations(scores, sentiment=-1)
+positive_bigrams = extract_collocations(scores, sentiment=1)
+negative_bigrams = extract_collocations(scores, sentiment=-1)
 
 print("Top 40 positive bigrams:")
-for bigram in positive_bigrams:
-    print(bigram)
-
-print("Top 40 positive trigrams:")
-for trigram in positive_trigrams:
-    print(trigram)
+print(positive_bigrams)
 
 print("Top 40 negative bigrams:")
-for bigram in negative_bigrams:
-    print(bigram)
+print(negative_bigrams)
 
-print("Top 40 negative trigrams:")
-for trigram in negative_trigrams:
-    print(trigram)
